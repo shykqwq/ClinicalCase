@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.gradle/
+build/
+
+.env
+.env.local
+.env.production
+backend/.env
+backend/.env.production
+backend/.npm-cache/
+
+*.log
+npm-debug.log*
+
+android/local.properties
+android/.idea/

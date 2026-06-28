@@ -1,0 +1,278 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Department {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(100)
+  hospitalName String?  @map("hospital_name") @db.VarChar(150)
+  status       String   @default("active") @db.VarChar(20)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  users    User[]
+  patients Patient[]
+  cases    ClinicalCase[]
+  tags     Tag[]
+
+  @@map("departments")
+}
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  departmentId  String    @map("department_id") @db.Uuid
+  username      String    @db.VarChar(80)
+  passwordHash  String    @map("password_hash") @db.VarChar(255)
+  displayName   String    @map("display_name") @db.VarChar(80)
+  phone         String?   @db.VarChar(30)
+  email         String?   @db.VarChar(120)
+  role          String    @db.VarChar(30)
+  status        String    @default("active") @db.VarChar(20)
+  lastLoginAt   DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@unique([departmentId, username])
+  @@index([departmentId, role])
+  @@index([departmentId, status])
+  @@map("users")
+}
+
+model Patient {
+  id               String    @id @default(uuid()) @db.Uuid
+  departmentId     String    @map("department_id") @db.Uuid
+  name             String    @db.VarChar(80)
+  gender           String    @db.VarChar(20)
+  birthDate        DateTime? @map("birth_date") @db.Date
+  ageAtFirstVisit  Int?      @map("age_at_first_visit")
+  phone            String?   @db.VarChar(30)
+  identityNo       String?   @map("identity_no") @db.VarChar(30)
+  outpatientNo     String?   @map("outpatient_no") @db.VarChar(80)
+  inpatientNo      String?   @map("inpatient_no") @db.VarChar(80)
+  firstVisitDate   DateTime  @map("first_visit_date") @db.Date
+  attendingDoctorId String?  @map("attending_doctor_id") @db.Uuid
+  remark           String?
+  createdBy        String    @map("created_by") @db.Uuid
+  updatedBy        String    @map("updated_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  department  Department    @relation(fields: [departmentId], references: [id])
+  cases       ClinicalCase[]
+  attachments Attachment[]
+
+  @@index([departmentId, name])
+  @@index([departmentId, phone])
+  @@index([departmentId, outpatientNo])
+  @@index([departmentId, inpatientNo])
+  @@index([departmentId, firstVisitDate])
+  @@map("patients")
+}
+
+model ClinicalCase {
+  id                      String    @id @default(uuid()) @db.Uuid
+  departmentId            String    @map("department_id") @db.Uuid
+  patientId               String    @map("patient_id") @db.Uuid
+  title                   String    @db.VarChar(150)
+  visitType               String    @map("visit_type") @db.VarChar(30)
+  laterality              String    @db.VarChar(20)
+  diseaseType             String    @map("disease_type") @db.VarChar(50)
+  preliminaryDiagnosis    String?   @map("preliminary_diagnosis")
+  confirmedDiagnosis      String?   @map("confirmed_diagnosis")
+  pathologyType           String?   @map("pathology_type") @db.VarChar(120)
+  erStatus                String?   @map("er_status") @db.VarChar(20)
+  prStatus                String?   @map("pr_status") @db.VarChar(20)
+  her2Status              String?   @map("her2_status") @db.VarChar(30)
+  ki67Percent             Decimal?  @map("ki67_percent") @db.Decimal(5, 2)
+  molecularSubtype        String?   @map("molecular_subtype") @db.VarChar(40)
+  clinicalTStage          String?   @map("clinical_t_stage") @db.VarChar(20)
+  clinicalNStage          String?   @map("clinical_n_stage") @db.VarChar(20)
+  clinicalMStage          String?   @map("clinical_m_stage") @db.VarChar(20)
+  pathologicalTStage      String?   @map("pathological_t_stage") @db.VarChar(20)
+  pathologicalNStage      String?   @map("pathological_n_stage") @db.VarChar(20)
+  pathologicalMStage      String?   @map("pathological_m_stage") @db.VarChar(20)
+  clinicalStage           String?   @map("clinical_stage") @db.VarChar(30)
+  pathologicalStage       String?   @map("pathological_stage") @db.VarChar(30)
+  hasNeoadjuvantTherapy   Boolean?  @map("has_neoadjuvant_therapy")
+  neoadjuvantTherapyPlan  String?   @map("neoadjuvant_therapy_plan")
+  surgeryDate             DateTime? @map("surgery_date") @db.Date
+  surgeryType             String?   @map("surgery_type") @db.VarChar(120)
+  axillaryManagement      String?   @map("axillary_management") @db.VarChar(120)
+  chemotherapyPlan        String?   @map("chemotherapy_plan")
+  hasRadiotherapy         Boolean?  @map("has_radiotherapy")
+  hasTargetedTherapy      Boolean?  @map("has_targeted_therapy")
+  targetedTherapyPlan     String?   @map("targeted_therapy_plan")
+  hasEndocrineTherapy     Boolean?  @map("has_endocrine_therapy")
+  endocrineTherapyPlan    String?   @map("endocrine_therapy_plan")
+  recurrenceStatus        String?   @map("recurrence_status") @db.VarChar(40)
+  currentStatus           String    @map("current_status") @db.VarChar(40)
+  summary                 String?
+  caseStatus              String    @default("draft") @map("case_status") @db.VarChar(20)
+  archivedAt              DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdBy               String    @map("created_by") @db.Uuid
+  updatedBy               String    @map("updated_by") @db.Uuid
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt               DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  department   Department        @relation(fields: [departmentId], references: [id])
+  patient      Patient           @relation(fields: [patientId], references: [id])
+  attachments  Attachment[]
+  tagRelations CaseTagRelation[]
+  followUpPlans FollowUpPlan[]
+  followUpRecords FollowUpRecord[]
+
+  @@index([departmentId, patientId])
+  @@index([departmentId, caseStatus])
+  @@index([departmentId, diseaseType])
+  @@index([departmentId, molecularSubtype])
+  @@index([departmentId, clinicalStage, pathologicalStage])
+  @@index([departmentId, currentStatus])
+  @@index([surgeryDate])
+  @@map("clinical_cases")
+}
+
+model Tag {
+  id           String    @id @default(uuid()) @db.Uuid
+  departmentId String    @map("department_id") @db.Uuid
+  name         String    @db.VarChar(80)
+  color        String?   @db.VarChar(20)
+  createdBy    String    @map("created_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  department   Department        @relation(fields: [departmentId], references: [id])
+  tagRelations CaseTagRelation[]
+
+  @@unique([departmentId, name])
+  @@map("tags")
+}
+
+model CaseTagRelation {
+  id           String   @id @default(uuid()) @db.Uuid
+  departmentId String   @map("department_id") @db.Uuid
+  caseId       String   @map("case_id") @db.Uuid
+  tagId        String   @map("tag_id") @db.Uuid
+  createdBy    String   @map("created_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  clinicalCase ClinicalCase @relation(fields: [caseId], references: [id])
+  tag          Tag          @relation(fields: [tagId], references: [id])
+
+  @@unique([caseId, tagId])
+  @@index([departmentId, tagId])
+  @@map("case_tag_relations")
+}
+
+model Attachment {
+  id               String    @id @default(uuid()) @db.Uuid
+  departmentId     String    @map("department_id") @db.Uuid
+  patientId        String    @map("patient_id") @db.Uuid
+  caseId           String?   @map("case_id") @db.Uuid
+  category         String    @db.VarChar(40)
+  originalFilename String    @map("original_filename") @db.VarChar(255)
+  contentType      String    @map("content_type") @db.VarChar(120)
+  fileSize         BigInt    @map("file_size")
+  objectKey        String    @map("object_key") @db.VarChar(500)
+  checksum         String?   @db.VarChar(128)
+  uploadedBy       String    @map("uploaded_by") @db.Uuid
+  uploadedAt       DateTime  @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  patient      Patient       @relation(fields: [patientId], references: [id])
+  clinicalCase ClinicalCase? @relation(fields: [caseId], references: [id])
+
+  @@index([departmentId, patientId])
+  @@index([departmentId, caseId])
+  @@index([category])
+  @@map("attachments")
+}
+
+model FollowUpPlan {
+  id             String    @id @default(uuid()) @db.Uuid
+  departmentId   String    @map("department_id") @db.Uuid
+  patientId      String    @map("patient_id") @db.Uuid
+  caseId         String    @map("case_id") @db.Uuid
+  followUpType   String    @map("follow_up_type") @db.VarChar(50)
+  plannedDate    DateTime  @map("planned_date") @db.Date
+  assigneeId     String?   @map("assignee_id") @db.Uuid
+  status         String    @default("pending") @db.VarChar(30)
+  createdBy      String    @map("created_by") @db.Uuid
+  updatedBy      String    @map("updated_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  clinicalCase ClinicalCase     @relation(fields: [caseId], references: [id])
+  records      FollowUpRecord[]
+
+  @@index([departmentId, status, plannedDate])
+  @@index([assigneeId, plannedDate])
+  @@index([caseId])
+  @@map("follow_up_plans")
+}
+
+model FollowUpRecord {
+  id                 String    @id @default(uuid()) @db.Uuid
+  departmentId       String    @map("department_id") @db.Uuid
+  followUpPlanId     String    @map("follow_up_plan_id") @db.Uuid
+  patientId          String    @map("patient_id") @db.Uuid
+  caseId             String    @map("case_id") @db.Uuid
+  actualDate         DateTime  @map("actual_date") @db.Date
+  method             String    @db.VarChar(40)
+  survivalStatus     String    @map("survival_status") @db.VarChar(40)
+  hasRecurrence      Boolean?  @map("has_recurrence")
+  recurrenceSite     String?   @map("recurrence_site") @db.VarChar(255)
+  hasMetastasis      Boolean?  @map("has_metastasis")
+  metastasisSite     String?   @map("metastasis_site") @db.VarChar(255)
+  imagingSummary     String?   @map("imaging_summary")
+  tumorMarkerSummary String?   @map("tumor_marker_summary")
+  currentTreatment   String?   @map("current_treatment")
+  adverseReactions   String?   @map("adverse_reactions")
+  remark             String?
+  summary            String?
+  nextFollowUpDate   DateTime? @map("next_follow_up_date") @db.Date
+  recordedBy         String    @map("recorded_by") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  plan         FollowUpPlan @relation(fields: [followUpPlanId], references: [id])
+  clinicalCase ClinicalCase @relation(fields: [caseId], references: [id])
+
+  @@index([followUpPlanId])
+  @@index([caseId, actualDate])
+  @@index([patientId, actualDate])
+  @@map("follow_up_records")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  departmentId   String?  @map("department_id") @db.Uuid
+  actorId        String?  @map("actor_id") @db.Uuid
+  action         String   @db.VarChar(80)
+  objectType     String?  @map("object_type") @db.VarChar(80)
+  objectId       String?  @map("object_id") @db.Uuid
+  beforeSnapshot Json?    @map("before_snapshot")
+  afterSnapshot  Json?    @map("after_snapshot")
+  ipAddress      String?  @map("ip_address") @db.VarChar(80)
+  userAgent      String?  @map("user_agent")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([departmentId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([objectType, objectId])
+  @@index([action])
+  @@map("audit_logs")
+}
+
