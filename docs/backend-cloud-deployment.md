@@ -2,100 +2,131 @@
 
 本项目 P0 推荐先用一台云服务器部署：
 
-- NestJS API
-- PostgreSQL
-- Docker Compose
+- Caddy：公网 HTTPS 入口，自动申请和续期 TLS 证书
+- NestJS API：只在 Docker 内网暴露 `3001`
+- PostgreSQL：只绑定本机/容器网络
 
-真实患者身份信息会经过公网传输，正式使用建议绑定域名并启用 HTTPS，或至少只在可信网络/VPN 内访问。
+真实患者身份信息会经过公网传输，生产环境必须使用 HTTPS。不要长期使用裸 HTTP。
 
-## 1. 服务器准备
+## 1. 域名准备
 
-推荐服务器：
+HTTPS 需要一个域名，不能稳定依赖裸 IP 申请可信证书。
 
-- Ubuntu 22.04/24.04
-- 2 核 4G 起步
-- 系统盘 40G 起步
-- 安全组开放 `3001/tcp`
+示例：
 
-安装 Docker：
-
-```bash
-sudo apt update
-sudo apt install -y ca-certificates curl git
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker $USER
+```text
+api.your-domain.com
 ```
 
-退出 SSH 后重新登录，让 docker 用户组生效。
+在域名 DNS 控制台添加 A 记录：
 
-## 2. 上传项目
+```text
+主机记录：api
+记录类型：A
+记录值：服务器公网 IP，例如 8.130.130.235
+```
 
-方式一：用 Git 拉代码：
+等待 DNS 生效后，在本机测试：
 
 ```bash
-git clone <你的仓库地址> ClinicalCase
+ping api.your-domain.com
+```
+
+## 2. 服务器安全组
+
+阿里云安全组入方向放行：
+
+```text
+TCP 80   0.0.0.0/0
+TCP 443  0.0.0.0/0
+```
+
+启用 HTTPS 后，不需要公网开放 `3001`。如果之前放行过 `3001`，HTTPS 跑通后建议删除这条规则。
+
+## 3. 拉取代码
+
+```bash
+git clone https://github.com/shykqwq/ClinicalCase.git
 cd ClinicalCase/backend
 ```
 
-方式二：用压缩包上传整个 `ClinicalCase` 项目，然后进入：
+如果服务器上已经拉过代码：
 
 ```bash
-cd ClinicalCase/backend
+cd /home/admin/ClinicalCase
+git pull
+cd backend
 ```
 
-## 3. 配置生产环境变量
+## 4. 配置生产环境变量
 
 ```bash
 cp .env.production.example .env.production
-nano .env.production
+vi .env.production
 ```
 
-必须修改这些值：
+必须修改：
 
 ```text
+API_DOMAIN=你的接口域名，例如 api.your-domain.com
+
 POSTGRES_PASSWORD=一个强数据库密码
 DATABASE_URL=postgresql://clinical_case:同一个强数据库密码@postgres:5432/clinical_case
+
 JWT_ACCESS_SECRET=一个很长的随机字符串
 JWT_REFRESH_SECRET=另一个很长的随机字符串
+
 SEED_ADMIN_PASSWORD=首次管理员密码
 ```
 
-生成随机密钥可用：
+生成随机密钥：
 
 ```bash
 openssl rand -hex 32
 ```
 
-## 4. 启动后端
+## 5. 启动 HTTPS 版服务
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+查看状态：
+
+```bash
+docker ps
+```
+
+应看到：
+
+```text
+clinical-case-caddy
+clinical-case-api
+clinical-case-postgres
+```
+
 查看日志：
 
 ```bash
+docker compose -f docker-compose.prod.yml logs -f caddy
 docker compose -f docker-compose.prod.yml logs -f api
 ```
 
-第一次启动会自动：
+## 6. 验证 HTTPS
 
-- 等待 PostgreSQL 就绪
-- 初始化数据库表
-- 创建默认科室和管理员账号
-- 启动 NestJS API
-
-后续重启不会重复建表。
-
-## 5. 验证接口
-
-假设服务器公网 IP 是 `1.2.3.4`：
+本机验证容器内 API：
 
 ```bash
-curl http://1.2.3.4:3001/api/v1/health
+curl http://127.0.0.1:3001/api/v1/health
 ```
 
-应该返回：
+公网验证 HTTPS：
+
+```bash
+curl https://api.your-domain.com/api/v1/health
+```
+
+应返回：
 
 ```json
 {"status":"ok","timestamp":"..."}
@@ -104,39 +135,32 @@ curl http://1.2.3.4:3001/api/v1/health
 登录测试：
 
 ```bash
-curl -X POST http://1.2.3.4:3001/api/v1/auth/login \
+curl -X POST https://api.your-domain.com/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"你的 SEED_ADMIN_PASSWORD"}'
+  -d '{"username":"admin","password":"你的管理员密码"}'
 ```
 
-## 6. Android 连接云端 API
-
-构建 APK 时传入服务器地址：
-
-```bash
-cd ../android
-./gradlew assembleDebug -PAPI_BASE_URL=http://1.2.3.4:3001/api/v1/
-```
+## 7. Android 连接 HTTPS API
 
 Windows PowerShell：
 
 ```powershell
 cd E:\TRAE_projrcts\ClinicalCase\android
-.\gradlew.bat assembleDebug -PAPI_BASE_URL=http://1.2.3.4:3001/api/v1/
+.\gradlew.bat assembleDebug -PAPI_BASE_URL=https://api.your-domain.com/api/v1/
 ```
 
-如果使用域名和 HTTPS，则改成：
+生成 APK：
 
 ```text
-https://api.your-domain.com/api/v1/
+E:\TRAE_projrcts\ClinicalCase\android\app\build\outputs\apk\debug\app-debug.apk
 ```
 
-## 7. 常用运维命令
+## 8. 常用运维命令
 
 重启：
 
 ```bash
-docker compose -f docker-compose.prod.yml restart api
+docker compose -f docker-compose.prod.yml restart
 ```
 
 停止：
@@ -156,4 +180,3 @@ docker exec clinical-case-postgres pg_dump -U clinical_case clinical_case > clin
 ```bash
 cat clinical_case_backup.sql | docker exec -i clinical-case-postgres psql -U clinical_case -d clinical_case
 ```
-

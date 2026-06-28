@@ -1,4 +1,21 @@
 services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: clinical-case-caddy
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - clinical_case_caddy_data:/data
+      - clinical_case_caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+
   postgres:
     image: postgres:16-alpine
     container_name: clinical-case-postgres
@@ -25,8 +42,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env.production
-    ports:
-      - "3001:3001"
+    expose:
+      - "3001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -38,3 +55,5 @@ services:
 
 volumes:
   clinical_case_postgres_data:
+  clinical_case_caddy_data:
+  clinical_case_caddy_config:
