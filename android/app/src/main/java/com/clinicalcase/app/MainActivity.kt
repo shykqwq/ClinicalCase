@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -20,6 +21,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -47,6 +50,9 @@ import com.clinicalcase.app.data.api.PatientDto
 import com.clinicalcase.app.data.api.RecentCaseDto
 import com.clinicalcase.app.data.session.SessionStore
 import com.clinicalcase.app.ui.theme.ClinicalCaseTheme
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 
 class MainActivity : ComponentActivity() {
     private val repository by lazy {
@@ -1412,7 +1418,7 @@ private fun NewFollowUpRecordScreen(
                     }
                 }
             }
-            item { FormTextField(form.actualDate, { onFormChange { state -> state.copy(actualDate = it) } }, "实际随访日期 yyyy-MM-dd *", readOnly = readOnly) }
+            item { DateField(form.actualDate, { onFormChange { state -> state.copy(actualDate = it) } }, "实际随访日期 *", readOnly = readOnly) }
             item {
                 ChoiceButtons(
                     label = "随访方式",
@@ -1469,7 +1475,7 @@ private fun NewFollowUpRecordScreen(
             item { FormTextField(form.tumorMarkerSummary, { onFormChange { state -> state.copy(tumorMarkerSummary = it) } }, "肿瘤标志物摘要", minLines = 3, readOnly = readOnly) }
             item { FormTextField(form.currentTreatment, { onFormChange { state -> state.copy(currentTreatment = it) } }, "当前治疗", readOnly = readOnly) }
             item { FormTextField(form.adverseReactions, { onFormChange { state -> state.copy(adverseReactions = it) } }, "不良反应", readOnly = readOnly) }
-            item { FormTextField(form.nextFollowUpDate, { onFormChange { state -> state.copy(nextFollowUpDate = it) } }, "下次随访日期 yyyy-MM-dd，可空", readOnly = readOnly) }
+            item { DateField(form.nextFollowUpDate, { onFormChange { state -> state.copy(nextFollowUpDate = it) } }, "下次随访日期，可空", allowClear = true, readOnly = readOnly) }
             item { FormTextField(form.remark, { onFormChange { state -> state.copy(remark = it) } }, "备注", minLines = 3, readOnly = readOnly) }
             item { ErrorText(state.errorMessage) }
             if (!readOnly) item {
@@ -1527,10 +1533,10 @@ private fun NewFollowUpPlanScreen(
                 )
             }
             item {
-                FormTextField(
+                DateField(
                     value = form.plannedDate,
                     onValueChange = { onFormChange { state -> state.copy(plannedDate = it) } },
-                    label = "计划日期 yyyy-MM-dd *",
+                    label = "计划日期 *",
                 )
             }
             item { ErrorText(state.errorMessage) }
@@ -1694,11 +1700,11 @@ private fun NewPatientScreen(
                     onValueChange = { value -> onFormChange { state -> state.copy(gender = value) } },
                 )
             }
-            item { FormTextField(form.birthDate, { onFormChange { state -> state.copy(birthDate = it) } }, "出生日期 yyyy-MM-dd，可空") }
+            item { DateField(form.birthDate, { onFormChange { state -> state.copy(birthDate = it) } }, "出生日期，可空", allowClear = true) }
             item { FormTextField(form.phone, { onFormChange { state -> state.copy(phone = it) } }, "手机号") }
             item { FormTextField(form.outpatientNo, { onFormChange { state -> state.copy(outpatientNo = it) } }, "门诊号") }
             item { FormTextField(form.inpatientNo, { onFormChange { state -> state.copy(inpatientNo = it) } }, "住院号") }
-            item { FormTextField(form.firstVisitDate, { onFormChange { state -> state.copy(firstVisitDate = it) } }, "初诊日期 yyyy-MM-dd *") }
+            item { DateField(form.firstVisitDate, { onFormChange { state -> state.copy(firstVisitDate = it) } }, "初诊日期 *") }
             item { FormTextField(form.remark, { onFormChange { state -> state.copy(remark = it) } }, "备注", minLines = 3) }
             item { ErrorText(state.errorMessage) }
             item {
@@ -1775,7 +1781,7 @@ private fun NewCaseScreen(
                     onValueChange = { value -> onFormChange { state -> state.copy(molecularSubtype = value) } },
                 )
             }
-            item { FormTextField(form.surgeryDate, { onFormChange { state -> state.copy(surgeryDate = it) } }, "手术日期 yyyy-MM-dd，可空") }
+            item { DateField(form.surgeryDate, { onFormChange { state -> state.copy(surgeryDate = it) } }, "手术日期，可空", allowClear = true) }
             item { FormTextField(form.surgeryType, { onFormChange { state -> state.copy(surgeryType = it) } }, "手术方式") }
             item {
                 ChoiceButtons(
@@ -1863,7 +1869,7 @@ private fun CaseFormScreen(
                     onValueChange = { value -> onFormChange { state -> state.copy(molecularSubtype = value) } },
                 )
             }
-            item { FormTextField(form.surgeryDate, { onFormChange { state -> state.copy(surgeryDate = it) } }, "手术日期 yyyy-MM-dd，可空") }
+            item { DateField(form.surgeryDate, { onFormChange { state -> state.copy(surgeryDate = it) } }, "手术日期，可空", allowClear = true) }
             item { FormTextField(form.surgeryType, { onFormChange { state -> state.copy(surgeryType = it) } }, "手术方式") }
             item {
                 ChoiceButtons(
@@ -2151,6 +2157,175 @@ private fun FormTextField(
 }
 
 @Composable
+private fun DateField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    allowClear: Boolean = false,
+    readOnly: Boolean = false,
+) {
+    val selectedDate = remember(value) { value.toLocalDateOrToday() }
+    var showPicker by remember { mutableStateOf(false) }
+
+    if (showPicker) {
+        ChineseDatePickerDialog(
+            initialDate = selectedDate,
+            allowClear = allowClear && value.isNotBlank(),
+            onDismiss = { showPicker = false },
+            onClear = {
+                showPicker = false
+                onValueChange("")
+            },
+            onConfirm = { date ->
+                showPicker = false
+                onValueChange(date.format(DateTimeFormatter.ISO_LOCAL_DATE))
+            },
+        )
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = value,
+                onValueChange = {},
+                label = { Text(label) },
+                singleLine = true,
+                readOnly = true,
+            )
+            if (!readOnly) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable { showPicker = true },
+                )
+            }
+        }
+        if (allowClear && value.isNotBlank() && !readOnly) {
+            TextButton(onClick = { onValueChange("") }) {
+                Text("清空日期")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChineseDatePickerDialog(
+    initialDate: LocalDate,
+    allowClear: Boolean,
+    onDismiss: () -> Unit,
+    onClear: () -> Unit,
+    onConfirm: (LocalDate) -> Unit,
+) {
+    var year by remember(initialDate) { mutableStateOf(initialDate.year) }
+    var month by remember(initialDate) { mutableStateOf(initialDate.monthValue) }
+    var day by remember(initialDate) { mutableStateOf(initialDate.dayOfMonth) }
+
+    val currentYear = LocalDate.now().year
+    val years = remember(currentYear, initialDate.year) {
+        ((currentYear - 100)..(currentYear + 20))
+            .toMutableSet()
+            .apply { add(initialDate.year) }
+            .sorted()
+            .reversed()
+    }
+    val months = remember { (1..12).toList() }
+    val maxDay = YearMonth.of(year, month).lengthOfMonth()
+    if (day > maxDay) day = maxDay
+    val days = remember(year, month) { (1..maxDay).toList() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择日期") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "当前选择：${year}年${month}月${day}日",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    DatePartDropdown(
+                        modifier = Modifier.weight(1f),
+                        value = year,
+                        suffix = "年",
+                        options = years,
+                        onValueChange = { year = it },
+                    )
+                    DatePartDropdown(
+                        modifier = Modifier.weight(1f),
+                        value = month,
+                        suffix = "月",
+                        options = months,
+                        onValueChange = { month = it },
+                    )
+                    DatePartDropdown(
+                        modifier = Modifier.weight(1f),
+                        value = day,
+                        suffix = "日",
+                        options = days,
+                        onValueChange = { day = it },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(LocalDate.of(year, month, day)) }) {
+                Text("确定")
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (allowClear) {
+                    TextButton(onClick = onClear) {
+                        Text("清空日期")
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("取消")
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun DatePartDropdown(
+    modifier: Modifier = Modifier,
+    value: Int,
+    suffix: String,
+    options: List<Int>,
+    onValueChange: (Int) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        OutlinedButton(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { expanded = true },
+        ) {
+            Text("$value$suffix")
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text("$option$suffix") },
+                    onClick = {
+                        expanded = false
+                        onValueChange(option)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun PasswordTextField(
     value: String,
     onValueChange: (String) -> Unit,
@@ -2164,6 +2339,12 @@ private fun PasswordTextField(
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
     )
+}
+
+private fun String.toLocalDateOrToday(): LocalDate {
+    return runCatching {
+        LocalDate.parse(take(10), DateTimeFormatter.ISO_LOCAL_DATE)
+    }.getOrDefault(LocalDate.now())
 }
 
 @Composable
